@@ -33,6 +33,8 @@
     webpmux -get icc in.webp -o image_profile.icc
     webpmux -get exif in.webp -o image_metadata.exif
     webpmux -get xmp in.webp -o image_metadata.xmp
+  Extract frame from corrupted but displayable WebP container file:
+    webpmux -get frame n in.webp -o out_frame.webp -tolerant
 
   Strip data from WebP Container file:
     webpmux -strip icc in.webp -o out.webp
@@ -122,6 +124,7 @@ typedef struct {
   FeatureType type_;
   FeatureArg* args_;
   int arg_count_;
+  uint8_t tolerantly_;
 } Config;
 
 //------------------------------------------------------------------------------
@@ -309,6 +312,7 @@ static void PrintHelp(void) {
   printf("       webpmux -info INPUT\n");
   printf("       webpmux [-h|-help]\n");
   printf("       webpmux -version\n");
+  printf("       webpmux -tolerantly\n");
   printf("       webpmux argument_file_name\n");
 
   printf("\n");
@@ -394,14 +398,18 @@ static void WarnAboutOddOffset(const WebPMuxFrameInfo* const info) {
   }
 }
 
-static int CreateMux(const char* const filename, WebPMux** mux) {
+static int CreateMux(const char* const filename, WebPMux** mux, uint8_t tolerantly) {
   WebPData bitstream;
   assert(mux != NULL);
   if (!ExUtilReadFileToWebPData(filename, &bitstream)) return 0;
-  *mux = WebPMuxCreate(&bitstream, 1);
+  if (tolerantly) {
+    *mux = WebPMuxCreateTolerantly(&bitstream, 1);
+  } else {
+    *mux = WebPMuxCreate(&bitstream, 1);
+  }
   WebPDataClear(&bitstream);
   if (*mux != NULL) return 1;
-  WFPRINTF(stderr, "Failed to create mux object from file %s.\n",
+  WFPRINTF(stderr, "Failed to create mux object from file %s.\nYou may try -tolerantly to save the data, but not guaranteed.\n",
            (const W_CHAR*)filename);
   return 0;
 }
@@ -743,6 +751,9 @@ static int ParseCommandLine(Config* config, const W_CHAR** const unicode_argv) {
         DeleteConfig(config);
         LOCAL_FREE((W_CHAR** const)unicode_argv);
         exit(0);
+      } else if (!strcmp(argv[i], "-tolerantly")) {
+        config->tolerantly_ = 1;
+        ++i;
       } else if (!strcmp(argv[i], "--")) {
         if (i < argc - 1) {
           ++i;
@@ -938,7 +949,7 @@ static int Process(const Config* config) {
 
   switch (config->action_type_) {
     case ACTION_GET: {
-      ok = CreateMux(config->input_, &mux);
+      ok = CreateMux(config->input_, &mux, config->tolerantly_);
       if (!ok) goto Err2;
       switch (config->type_) {
         case FEATURE_ANMF:
@@ -1037,7 +1048,7 @@ static int Process(const Config* config) {
         case FEATURE_ICCP:
         case FEATURE_EXIF:
         case FEATURE_XMP: {
-          ok = CreateMux(config->input_, &mux);
+          ok = CreateMux(config->input_, &mux, config->tolerantly_);
           if (!ok) goto Err2;
           ok = ExUtilReadFileToWebPData(config->args_[0].filename_, &chunk);
           if (!ok) goto Err2;
@@ -1058,7 +1069,7 @@ static int Process(const Config* config) {
             ERROR_GOTO1("ERROR: Loop count must be in the range 0 to 65535.\n",
                         Err2);
           }
-          ok = CreateMux(config->input_, &mux);
+          ok = CreateMux(config->input_, &mux, config->tolerantly_);
           if (!ok) goto Err2;
           ok = (WebPMuxGetAnimationParams(mux, &params) == WEBP_MUX_OK);
           if (!ok) {
@@ -1082,7 +1093,7 @@ static int Process(const Config* config) {
             ERROR_GOTO1("ERROR: Could not parse the background color.\n",
                         Err2);
           }
-          ok = CreateMux(config->input_, &mux);
+          ok = CreateMux(config->input_, &mux, config->tolerantly_);
           if (!ok) goto Err2;
           ok = (WebPMuxGetAnimationParams(mux, &params) == WEBP_MUX_OK);
           if (!ok) {
@@ -1108,7 +1119,7 @@ static int Process(const Config* config) {
     }
     case ACTION_DURATION: {
       int num_frames;
-      ok = CreateMux(config->input_, &mux);
+      ok = CreateMux(config->input_, &mux, config->tolerantly_);
       if (!ok) goto Err2;
       err = WebPMuxNumChunks(mux, WEBP_CHUNK_ANMF, &num_frames);
       ok = (err == WEBP_MUX_OK);
@@ -1190,7 +1201,7 @@ static int Process(const Config* config) {
       break;
     }
     case ACTION_STRIP: {
-      ok = CreateMux(config->input_, &mux);
+      ok = CreateMux(config->input_, &mux, config->tolerantly_);
       if (!ok) goto Err2;
       if (config->type_ == FEATURE_ICCP || config->type_ == FEATURE_EXIF ||
           config->type_ == FEATURE_XMP) {
@@ -1207,7 +1218,7 @@ static int Process(const Config* config) {
       break;
     }
     case ACTION_INFO: {
-      ok = CreateMux(config->input_, &mux);
+      ok = CreateMux(config->input_, &mux, config->tolerantly_);
       if (!ok) goto Err2;
       ok = (DisplayInfo(mux) == WEBP_MUX_OK);
       break;

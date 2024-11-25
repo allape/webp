@@ -178,7 +178,7 @@ static int MuxImageParse(const WebPChunk* const chunk, int copy_data,
 // Create a mux object from WebP-RIFF data.
 
 WebPMux* WebPMuxCreateInternal(const WebPData* bitstream, int copy_data,
-                               int version) {
+                               int version, uint8_t ignore_incomplete_data_err) {
   size_t riff_size;
   uint32_t tag;
   const uint8_t* end;
@@ -246,6 +246,7 @@ WebPMux* WebPMuxCreateInternal(const WebPData* bitstream, int copy_data,
     WebPChunkId id;
     if (ChunkVerifyAndAssign(&chunk, data, size, riff_size,
                              copy_data) != WEBP_MUX_OK) {
+      if (ignore_incomplete_data_err) break;
       goto Err;
     }
     data_size = ChunkDiskSize(&chunk);

@@ -125,7 +125,7 @@ WEBP_EXTERN void WebPMuxDelete(WebPMux* mux);
 
 // Internal, version-checked, entry point
 WEBP_NODISCARD WEBP_EXTERN WebPMux* WebPMuxCreateInternal(const WebPData*, int,
-                                                          int);
+                                                          int, uint8_t /*bool*/);
 
 // Creates a mux object from raw data given in WebP RIFF format.
 // Parameters:
@@ -139,7 +139,12 @@ WEBP_NODISCARD WEBP_EXTERN WebPMux* WebPMuxCreateInternal(const WebPData*, int,
 //   NULL - In case of invalid data or memory error.
 WEBP_NODISCARD static WEBP_INLINE WebPMux* WebPMuxCreate(
     const WebPData* bitstream, int copy_data) {
-  return WebPMuxCreateInternal(bitstream, copy_data, WEBP_MUX_ABI_VERSION);
+  return WebPMuxCreateInternal(bitstream, copy_data, WEBP_MUX_ABI_VERSION, 0);
+}
+
+WEBP_NODISCARD static WEBP_INLINE WebPMux* WebPMuxCreateTolerantly(
+    const WebPData* bitstream, int copy_data) {
+  return WebPMuxCreateInternal(bitstream, copy_data, WEBP_MUX_ABI_VERSION, 1);
 }
 
 //------------------------------------------------------------------------------
